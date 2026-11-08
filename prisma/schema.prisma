@@ -1,0 +1,309 @@
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ENUMS
+
+enum DocumentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  OPEN
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum InputType {
+  TEXT
+  AUDIO
+}
+
+// 1. USERS
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  courses       Course[]
+  quizAttempts  QuizAttempt[]
+  conversations Conversation[]
+
+  @@map("users")
+}
+
+// 2. COURSES
+
+model Course {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  title       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents     Document[]
+  chapters      Chapter[]
+  summaries     Summary[]
+  questionSets  QuestionSet[]
+  conversations Conversation[]
+
+  @@index([userId])
+  @@map("courses")
+}
+
+// 3. DOCUMENTS
+
+model Document {
+  id        String         @id @default(uuid()) @db.Uuid
+  courseId  String         @db.Uuid
+  name      String
+  filePath  String
+  fileType  String
+  fileSize  BigInt
+  status    DocumentStatus @default(PENDING)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  chapters  Chapter[]
+  summaries Summary[]
+
+  @@index([courseId])
+  @@map("documents")
+}
+
+// 4. CHAPTERS
+
+model Chapter {
+  id          String   @id @default(uuid()) @db.Uuid
+  courseId    String   @db.Uuid
+  documentId  String?  @db.Uuid
+  title       String
+  description String?
+  content     String?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course        Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  document      Document?     @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  summaries     Summary[]
+  questionSets  QuestionSet[]
+  conversations Conversation[]
+
+  @@index([courseId])
+  @@index([documentId])
+  @@map("chapters")
+}
+
+// 5. AI MODELS
+
+model AIModel {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  provider    String
+  modelName   String
+  isLocal     Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  summaries    Summary[]
+  questionSets QuestionSet[]
+  messages     Message[]
+
+  @@map("ai_models")
+}
+
+// 6. SUMMARIES
+
+model Summary {
+  id        String   @id @default(uuid()) @db.Uuid
+  courseId  String   @db.Uuid
+  chapterId String?  @db.Uuid
+  documentId String? @db.Uuid
+  aiModelId String?  @db.Uuid
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+
+  course   Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  chapter  Chapter?  @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+  document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  aiModel  AIModel?  @relation(fields: [aiModelId], references: [id], onDelete: SetNull)
+
+  @@index([courseId])
+  @@index([chapterId])
+  @@index([documentId])
+  @@map("summaries")
+}
+
+// 7. QUESTION SETS
+
+model QuestionSet {
+  id            String       @id @default(uuid()) @db.Uuid
+  courseId      String       @db.Uuid
+  chapterId     String?      @db.Uuid
+  aiModelId     String?      @db.Uuid
+  title         String
+  questionType  QuestionType
+  difficulty    Difficulty
+  questionCount Int
+  createdAt     DateTime     @default(now())
+
+  course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  chapter      Chapter?      @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+  aiModel      AIModel?      @relation(fields: [aiModelId], references: [id], onDelete: SetNull)
+  questions    Question[]
+  quizAttempts QuizAttempt[]
+
+  @@index([courseId])
+  @@index([chapterId])
+  @@map("question_sets")
+}
+
+// 8. QUESTIONS
+
+model Question {
+  id           String       @id @default(uuid()) @db.Uuid
+  questionSetId String      @db.Uuid
+  content      String
+  questionType QuestionType
+  difficulty   Difficulty
+  explanation  String?
+  position     Int          @default(0)
+  createdAt    DateTime     @default(now())
+
+  questionSet QuestionSet @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  options     QuestionOption[]
+  answers     UserAnswer[]
+
+  @@index([questionSetId])
+  @@map("questions")
+}
+
+// 9. QUESTION OPTIONS
+
+model QuestionOption {
+  id         String   @id @default(uuid()) @db.Uuid
+  questionId String   @db.Uuid
+  content    String
+  isCorrect  Boolean  @default(false)
+
+  question   Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selections UserAnswer[] @relation("SelectedOption")
+
+  @@index([questionId])
+  @@map("question_options")
+}
+
+// 10. QUIZ ATTEMPTS
+
+model QuizAttempt {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  questionSetId String   @db.Uuid
+  score        Float?
+  startedAt    DateTime  @default(now())
+  completedAt  DateTime?
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionSet QuestionSet @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  answers     UserAnswer[]
+
+  @@index([userId])
+  @@index([questionSetId])
+  @@map("quiz_attempts")
+}
+
+// 11. USER ANSWERS
+
+model UserAnswer {
+  id               String   @id @default(uuid()) @db.Uuid
+  quizAttemptId    String   @db.Uuid
+  questionId       String   @db.Uuid
+  selectedOptionId String?  @db.Uuid
+  answerText       String?
+  isCorrect        Boolean?
+  feedback         String?
+  answeredAt       DateTime @default(now())
+
+  quizAttempt   QuizAttempt    @relation(fields: [quizAttemptId], references: [id], onDelete: Cascade)
+  question      Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOption QuestionOption? @relation("SelectedOption", fields: [selectedOptionId], references: [id], onDelete: SetNull)
+
+  @@index([quizAttemptId])
+  @@index([questionId])
+  @@index([selectedOptionId])
+  @@map("user_answers")
+}
+
+// 12. CONVERSATIONS
+
+model Conversation {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  courseId  String   @db.Uuid
+  chapterId String?  @db.Uuid
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course   Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  chapter  Chapter?  @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+  messages Message[]
+
+  @@index([userId])
+  @@index([courseId])
+  @@index([chapterId])
+  @@map("conversations")
+}
+
+// 13. MESSAGES
+
+model Message {
+  id              String      @id @default(uuid()) @db.Uuid
+  conversationId  String      @db.Uuid
+  aiModelId       String?     @db.Uuid
+  role            MessageRole
+  inputType       InputType   @default(TEXT)
+  content         String?
+  audioPath       String?
+  transcription   String?
+  createdAt       DateTime    @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  aiModel      AIModel?      @relation(fields: [aiModelId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId])
+  @@index([aiModelId])
+  @@map("messages")
+}
