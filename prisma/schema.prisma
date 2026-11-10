@@ -54,8 +54,23 @@ model User {
   courses       Course[]
   quizAttempts  QuizAttempt[]
   conversations Conversation[]
+  sessions      Session[]
 
   @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
 }
 
 // 2. COURSES
@@ -65,6 +80,7 @@ model Course {
   userId      String   @db.Uuid
   title       String
   description String?
+  archivedAt  DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -82,22 +98,42 @@ model Course {
 // 3. DOCUMENTS
 
 model Document {
-  id        String         @id @default(uuid()) @db.Uuid
-  courseId  String         @db.Uuid
-  name      String
-  filePath  String
-  fileType  String
-  fileSize  BigInt
-  status    DocumentStatus @default(PENDING)
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id                 String         @id @default(uuid()) @db.Uuid
+  courseId           String         @db.Uuid
+  name               String
+  filePath           String
+  fileType           String
+  fileSize           BigInt
+  status             DocumentStatus @default(PENDING)
+  processingAttempts Int            @default(0)
+  processingError    String?
+  processingStartedAt DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
-  course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course    Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
   chapters  Chapter[]
   summaries Summary[]
+  chunks    DocumentChunk[]
 
   @@index([courseId])
+  @@index([status, processingStartedAt])
   @@map("documents")
+}
+
+model DocumentChunk {
+  id         String   @id @default(uuid()) @db.Uuid
+  documentId String   @db.Uuid
+  position   Int
+  content    String   @db.Text
+  embedding  Json     @db.JsonB
+  createdAt  DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, position])
+  @@index([documentId])
+  @@map("document_chunks")
 }
 
 // 4. CHAPTERS
@@ -198,6 +234,7 @@ model Question {
   questionType QuestionType
   difficulty   Difficulty
   explanation  String?
+  answerKey    String?      @db.Text
   position     Int          @default(0)
   createdAt    DateTime     @default(now())
 
@@ -262,6 +299,7 @@ model UserAnswer {
   @@index([quizAttemptId])
   @@index([questionId])
   @@index([selectedOptionId])
+  @@unique([quizAttemptId, questionId])
   @@map("user_answers")
 }
 
