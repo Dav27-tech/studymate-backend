@@ -1,15 +1,20 @@
 {
   "name": "study-mate-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "StudyMate backend API",
+  "main": "dist/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "tsx watch src/server.ts",
+    "build": "npm run db:generate && tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "db:generate": "prisma generate",
+    "db:status": "prisma migrate status",
+    "test": "npm run build && node --test dist/app.test.js dist/config/env.test.js dist/infrastructure/ai/ollama-client.test.js dist/infrastructure/ai/wav-audio.test.js dist/infrastructure/document-processing/document-ocr.test.js dist/infrastructure/document-processing/pdf-text-extractor.test.js dist/infrastructure/document-processing/text-chunker.test.js dist/infrastructure/storage/private-file-storage.test.js dist/modules/auth/auth.routes.test.js dist/modules/courses/course.routes.test.js dist/modules/courses/document-ingestion.service.test.js dist/modules/courses/document.routes.test.js dist/modules/study/rag.service.test.js dist/modules/study/voice-messages.test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
@@ -18,9 +23,19 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/cors": "^11.4.1",
+    "@fastify/multipart": "^10.1.8",
+    "@fastify/rate-limit": "^11.2.2",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
+    "@tesseract.js-data/eng": "^1.0.0",
+    "argon2": "^0.45.2",
     "dotenv": "^18.0.9",
-    "pg": "^8.23.1"
+    "fastify": "^5.12.8",
+    "pdf-parse": "^2.4.5",
+    "pg": "^8.23.1",
+    "sharp": "^0.35.5",
+    "tesseract.js": "^7.0.0"
   }
 }
